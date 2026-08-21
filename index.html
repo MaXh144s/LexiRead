@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>LexiRead — PDF Reader com Traduções</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+
+  <!-- SPLASH -->
+  <div id="splash">
+    <div class="splash-logo">Lexi<span>Read</span></div>
+    <div class="splash-sub">PDF Reader · Dicionário Interativo</div>
+
+    <div class="splash-upload-zone" id="upload-zone">
+      <div class="icon">📄</div>
+      <h2>Arraste um PDF aqui</h2>
+      <p>ou clique para selecionar</p>
+      <button class="btn-open" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
+        Abrir PDF
+      </button>
+    </div>
+    <input type="file" id="file-input" accept=".pdf">
+
+    <div class="recent-section" id="recent-section" style="display:none">
+      <h3>Recentes</h3>
+      <div id="recent-list"></div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app">
+    <!-- Progress bar -->
+    <div id="progress-bar"></div>
+
+    <!-- Topbar -->
+    <div id="topbar">
+      <div class="tb-logo">Lexi<span>Read</span></div>
+      <div class="tb-divider"></div>
+      <div class="tb-filename" id="tb-filename">—</div>
+      <div class="tb-spacer"></div>
+      <button class="tb-btn" id="tb-menu-toggle" onclick="toggleMobileMenu()" title="Menu" aria-label="Abrir menu">☰</button>
+
+      <!-- Scale -->
+      <div class="scale-control">
+        <button class="scale-btn" id="zoom-out">−</button>
+        <div class="scale-val" id="scale-val">100%</div>
+        <button class="scale-btn" id="zoom-in">+</button>
+      </div>
+
+      <!-- Page jump -->
+      <div class="page-jump">
+        <input type="number" id="page-input" min="1" placeholder="1">
+        <span>/ <span id="total-pages">—</span></span>
+      </div>
+
+      <div class="tb-divider"></div>
+      <button class="tb-btn" id="btn-open-another">📂 Outro PDF</button>
+      <button class="tb-btn" id="btn-search" onclick="openSearch()" title="Buscar no dicionário (Ctrl+K)">🔍 Buscar</button>
+      <button class="tb-btn" id="btn-pdf-search" onclick="openPdfSearch()" title="Buscar texto no PDF (Ctrl+F)">📄🔍 Buscar no PDF</button>
+      <button class="tb-btn" id="btn-visual" onclick="toggleVisualPanel()" title="Customizar aparência dos underlines">🎨 Aparência</button>
+      <button class="tb-btn" id="btn-dict" onclick="toggleSidebar()">📖 Dicionário</button>
+    </div>
+
+    <div id="mobile-actions-menu" class="mobile-actions-menu" aria-hidden="true" role="menu">
+      <button class="mob-action" type="button" onclick="toggleSidebar(); toggleMobileMenu(false)">📖 Dicionário</button>
+      <button class="mob-action" type="button" onclick="toggleVisualPanel(); toggleMobileMenu(false)">🎨 Aparência</button>
+      <button class="mob-action" type="button" onclick="openSearch(); toggleMobileMenu(false)">🔍 Buscar no dicionário</button>
+      <button class="mob-action" type="button" onclick="openPdfSearch(); toggleMobileMenu(false)">📄🔍 Buscar no PDF</button>
+      <button class="mob-action" type="button" onclick="document.getElementById('file-input').click(); toggleMobileMenu(false)">📂 Outro PDF</button>
+    </div>
+
+    <!-- Main -->
+    <div id="main">
+      <!-- Reader -->
+      <div id="reader">
+        <div id="pages-container"></div>
+      </div>
+
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="sidebar-header">
+          <h2>Dicionário</h2>
+          <button class="sidebar-close" onclick="toggleSidebar()">✕</button>
+        </div>
+        <div class="sidebar-tabs">
+          <div class="stab active" data-tab="list" onclick="switchTab('list')">Lista</div>
+          <div class="stab" data-tab="edit" onclick="switchTab('edit')">Editar</div>
+          <div class="stab" data-tab="suffixes" onclick="switchTab('suffixes')">Sufixos</div>
+          <div class="stab" data-tab="io" onclick="switchTab('io')">Import/Export</div>
+        </div>
+
+        <!-- List tab -->
+        <div class="stab-panel active" id="tab-list">
+          <input class="dict-search" type="text" placeholder="Buscar palavra…" oninput="filterDict(this.value)">
+          <div class="dict-count" id="dict-count">0 palavras</div>
+          <div id="dict-list"></div>
+        </div>
+
+        <!-- Edit tab -->
+        <div class="stab-panel" id="tab-edit">
+          <div class="form-group">
+            <label class="form-label">Palavra</label>
+            <input class="form-input" id="edit-word" type="text" placeholder="ex: serendipity">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Traduções (vírgula separa itens, Enter adiciona)</label>
+            <div class="tags-input-wrap" id="trans-tags-wrap">
+              <input class="tag-input" id="trans-tag-input" placeholder="Ex: sobre, acima de, por cima de" onkeydown="handleTagInput(event, 'translations')">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Exemplos</label>
+            <div class="examples-list" id="examples-list"></div>
+            <button class="btn-add-example" onclick="addExampleField()">+ Adicionar exemplo</button>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Descrição explicativa</label>
+            <textarea class="form-input form-textarea" id="edit-word-description" placeholder="Explicação do significado da palavra (ex: usado para expressar surpresa ou descoberta inesperada)"></textarea>
+            <small class="form-help">Mostrada no lugar dos exemplos quando não houver nenhum, ou como uma página extra (setinha →) quando houver exemplos.</small>
+          </div>
+
+          <!-- Linguistic Structure Section -->
+          <div class="collapsible-section collapsed" id="section-structure">
+            <div class="collapsible-header">
+              <div class="collapsible-title">Estrutura Linguística (Opcional)</div>
+              <button type="button" class="collapsible-toggle" onclick="toggleEditSection('section-structure')" aria-label="Abrir ou fechar Estrutura Linguística">+</button>
+            </div>
+            <div class="collapsible-body">
+              <div class="form-group">
+                <label class="form-label">Palavra Primitiva/Base</label>
+                <input class="form-input" id="edit-primitive-word" type="text" placeholder="ex: walk (para 'walking')">
+                <small class="form-help">Se esta palavra é uma variação, indique a palavra base aqui</small>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Tipo de Variação</label>
+                <select class="form-input" id="edit-variation-type">
+                  <option value="">Selecionar...</option>
+                  <option value="comparative">Comparativo (bigger)</option>
+                  <option value="superlative">Superlativo (biggest)</option>
+                  <option value="continuous">Contínuo (walking)</option>
+                  <option value="past">Passado (walked)</option>
+                  <option value="plural">Plural (houses)</option>
+                  <option value="adverb">Advérbio (quickly)</option>
+                  <option value="noun">Substantivo (happiness)</option>
+                  <option value="adjective">Adjetivo</option>
+                  <option value="other">Outra</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Descrição da Variação</label>
+                <textarea class="form-input form-textarea" id="edit-description" placeholder="ex: Comparative form of big"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pronunciation Section -->
+          <div class="collapsible-section collapsed" id="section-pronunciation">
+            <div class="collapsible-header">
+              <div class="collapsible-title">🔊 Pronúncia &amp; Áudio (Opcional)</div>
+              <button type="button" class="collapsible-toggle" onclick="toggleEditSection('section-pronunciation')" aria-label="Abrir ou fechar Pronúncia e Áudio">+</button>
+            </div>
+            <div class="collapsible-body">
+              <div class="form-group">
+                <label class="form-label">Reproduzir pronúncia</label>
+                <p class="form-help" style="margin-bottom:0.5rem;">Clique para ouvir a palavra pronunciada em inglês (EUA).</p>
+                <button type="button" class="btn-primary" id="btn-pronounce-word" onclick="speakWord(document.getElementById('edit-word').value)">🔊 Pronunciar</button>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Sua gravação</label>
+                <p class="form-help" style="margin-bottom:0.5rem;">Grave sua pronúncia em áudio (máximo 10 segundos). O áudio será compactado e armazenado separadamente.</p>
+                <div class="recording-controls">
+                  <button type="button" class="btn-secondary" id="btn-record-word" onclick="startRecording(document.getElementById('edit-word').value)">🎤 Gravar pronúncia</button>
+                  <button type="button" class="btn-secondary" id="btn-play-recording" onclick="playPronunciationAudio(document.getElementById('edit-word').value)" disabled>▶ Reproduzir</button>
+                  <button type="button" class="btn-secondary" id="btn-delete-recording" onclick="deletePronunciationAudio(document.getElementById('edit-word').value)" disabled>🗑️ Deletar</button>
+                </div>
+                <div id="recording-status" style="margin-top:0.5rem; font-size:0.75rem; color:var(--ink3);"></div>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-save" onclick="saveEntry()">💾 Salvar no dicionário</button>
+          <button class="btn-secondary" onclick="clearEditForm()">Limpar</button>
+          <div class="success-msg" id="save-success">✓ Salvo com sucesso!</div>
+        </div>
+
+        <!-- Suffixes tab -->
+        <div class="stab-panel" id="tab-suffixes">
+          <div class="form-group">
+            <label class="form-label">Sufixo</label>
+            <input class="form-input" id="suffix-key" type="text" placeholder="ex: ing">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipo</label>
+            <input class="form-input" id="suffix-type" type="text" placeholder="ex: verbal">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Significado</label>
+            <textarea class="form-input form-textarea" id="suffix-meaning" placeholder="Explique a função do sufixo"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Exemplos</label>
+            <div class="tags-input-wrap" id="suffix-examples-wrap">
+              <input class="tag-input" id="suffix-example-input" placeholder="Exemplo..." onkeydown="handleSuffixExampleInput(event)">
+            </div>
+            <button class="btn-add-example" onclick="addSuffixExample()">+ Adicionar exemplo</button>
+          </div>
+          <button class="btn-save" onclick="saveSuffixEntry()">Salvar sufixo</button>
+          <button class="btn-secondary" onclick="clearSuffixForm()">Limpar</button>
+          <div class="success-msg" id="suffix-save-success">✓ Sufixo salvo com sucesso!</div>
+
+          <div class="suffix-list">
+            <div class="dict-count" id="suffix-count">0 sufixos</div>
+            <div id="suffix-list"></div>
+          </div>
+        </div>
+
+        <!-- Import/Export tab -->
+        <div class="stab-panel" id="tab-io">
+          <div class="io-section">
+            <h3>Exportar Dicionário</h3>
+            <button class="btn-save" onclick="exportDict()">⬇ Baixar JSON</button>
+          </div>
+          <div class="io-section" style="margin-top:20px">
+            <h3>Importar Dicionário</h3>
+            <input type="file" id="import-file" accept=".json" style="display:none" onchange="importDict(this)">
+            <button class="btn-save" onclick="document.getElementById('import-file').click()">⬆ Carregar JSON</button>
+            <p style="font-size:0.75rem;color:var(--ink3);margin-top:8px;">Escolha se deseja mesclar o arquivo com o dicionário atual ou substituir tudo.</p>
+          </div>
+          <div class="io-section" style="margin-top:20px">
+            <h3>Modo de importação</h3>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+              <label class="radio-label"><input type="radio" name="import-mode" value="overwrite" checked> Substituir o dicionário atual</label>
+              <label class="radio-label"><input type="radio" name="import-mode" value="merge"> Adicionar traduções novas sem apagar as atuais</label>
+            </div>
+            <p style="font-size:0.75rem;color:var(--ink3);margin-top:8px;">No modo adicionar, as traduções existentes são mantidas e apenas termos novos são incluídos.</p>
+          </div>
+          <div class="io-section" style="margin-top:20px">
+            <h3>Política de descrição em conflito</h3>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+              <label class="radio-label"><input type="radio" name="description-policy" value="keep-local" checked> Manter minhas descrições quando houver conflito</label>
+              <label class="radio-label"><input type="radio" name="description-policy" value="use-import"> Usar descrições do arquivo importado quando houver conflito</label>
+            </div>
+            <p style="font-size:0.75rem;color:var(--ink3);margin-top:8px;">A escolha é aplicada apenas se houver descrição local e importada para a mesma palavra.</p>
+          </div>
+          <div class="io-section" style="margin-top:20px">
+            <h3>Excluir Dicionário Local</h3>
+            <button class="btn-secondary" onclick="clearDictionary()">🗑️ Apagar dicionário local</button>
+            <p style="font-size:0.75rem;color:var(--ink3);margin-top:8px;">Isso limpa o dicionário salvo no navegador. Baixe antes se quiser importar ou compartilhar suas palavras.</p>
+          </div>
+          <div class="io-section" style="margin-top:20px">
+            <h3>Estatísticas</h3>
+            <div id="dict-stats" style="font-size:0.8rem;color:var(--ink2);line-height:1.9;font-family:'JetBrains Mono',monospace;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div id="stats-bar">
+      <div class="stat-item">Página: <span id="stat-page">—</span></div>
+      <div class="stat-item">Palavras no dict.: <span id="stat-words">0</span></div>
+      <div class="stat-item">Ativas: <span id="stat-active">—</span></div>
+      <div class="stat-item" id="stat-match-wrap">Match na pág.: <span id="stat-match">—</span></div>
+    </div>
+  </div>
+
+  <!-- Tooltip -->
+  <div id="tooltip">
+    <div class="tt-header">
+      <button class="tt-nav tt-nav-left" id="tt-nav-left" onclick="tooltipShowMain()" title="Voltar">‹</button>
+      <div class="tt-word" id="tt-word">—</div>
+      <button class="tt-nav tt-nav-right" id="tt-nav-right" onclick="tooltipShowDescription()" title="Ver descrição">›</button>
+    </div>
+
+    <!-- Página principal: traduções + exemplos (ou descrição inline, se não houver exemplos) -->
+    <div class="tt-body" id="tt-body-main">
+      <div class="tt-translations" id="tt-translations"></div>
+      <div class="tt-examples" id="tt-examples"></div>
+    </div>
+
+    <!-- Página de descrição: só acessível via seta quando há exemplos E descrição -->
+    <div class="tt-body" id="tt-body-description" style="display:none">
+      <div class="tt-label">Descrição</div>
+      <div class="tt-description-text" id="tt-description-text"></div>
+    </div>
+
+    <div class="tt-actions">
+      <button class="tt-btn primary" id="tt-edit-btn" onclick="openEditForWord()">✏ Editar</button>
+      <button class="tt-btn" id="tt-pronounce-btn" onclick="pronuncieWordFromTooltip()">🔊 Pronunciar</button>
+      <button class="tt-btn" onclick="hideTooltip()">✕ Fechar</button>
+    </div>
+  </div>
+
+  <!-- Search Modal -->
+  <div id="search-modal" onclick="closeSearchOnBackdrop(event)">
+    <div class="search-box">
+      <div class="search-header">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Buscar palavra ou tradução…" oninput="handleSearchInput(this.value)" onkeydown="handleSearchKey(event)" autocomplete="off" spellcheck="false">
+        <span class="search-hint">Esc</span>
+      </div>
+      <div class="search-results" id="search-results">
+        <div class="search-empty">Digite para buscar no dicionário…</div>
+      </div>
+      <div class="search-footer">
+        <span><kbd>↑</kbd> <kbd>↓</kbd> navegar</span>
+        <span><kbd>Enter</kbd> editar</span>
+        <span><kbd>Esc</kbd> fechar</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF Text Search Modal -->
+  <div id="pdf-search-modal" onclick="closePdfSearchOnBackdrop(event)">
+    <div class="search-box">
+      <div class="search-header">
+        <span class="search-icon">📄🔍</span>
+        <input type="text" id="pdf-search-input" placeholder="Buscar texto dentro do PDF…" oninput="handlePdfSearchInput(this.value)" onkeydown="handlePdfSearchKey(event)" autocomplete="off" spellcheck="false">
+        <span class="search-hint">Esc</span>
+      </div>
+      <div class="search-results" id="pdf-search-results">
+        <div class="search-empty">Digite para buscar no texto do documento…</div>
+      </div>
+      <div class="search-footer">
+        <span id="pdf-search-status"></span>
+        <span><kbd>↑</kbd> <kbd>↓</kbd> navegar</span>
+        <span><kbd>Enter</kbd> ir até</span>
+        <span><kbd>Esc</kbd> fechar</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual Customization Panel -->
+  <div id="visual-panel" class="visual-panel">
+    <div class="visual-header">
+      <h3>🎨 Personalização Visual</h3>
+      <button class="visual-close" onclick="toggleVisualPanel()">✕</button>
+    </div>
+    <div class="visual-content">
+      <!-- Word underline customization -->
+      <fieldset class="visual-section">
+        <legend>Palavras Traduzidas</legend>
+        <div class="visual-control">
+          <label>Cor do underline</label>
+          <input type="color" id="vc-word-color" class="color-picker" onchange="updateVisualConfig('word', 'color', this.value)">
+        </div>
+        <div class="visual-control">
+          <label>Espessura</label>
+          <select id="vc-word-thickness" class="select-control" onchange="updateVisualConfig('word', 'thickness', this.value)">
+            <option value="1px">1px (fina)</option>
+            <option value="1.5px">1.5px</option>
+            <option value="2px" selected>2px (padrão)</option>
+            <option value="2.5px">2.5px</option>
+            <option value="3px">3px (grossa)</option>
+          </select>
+        </div>
+        <div class="visual-control">
+          <label>Estilo</label>
+          <select id="vc-word-style" class="select-control" onchange="updateVisualConfig('word', 'style', this.value)">
+            <option value="solid">Sólido</option>
+            <option value="dashed" selected>Tracejado</option>
+            <option value="dotted">Pontilhado</option>
+          </select>
+        </div>
+        <div class="visual-control">
+          <label>Opacidade: <span id="vc-word-opacity-val">100%</span></label>
+          <input type="range" id="vc-word-opacity" class="range-control" min="0" max="100" value="100" onchange="updateVisualConfig('word', 'opacity', this.value / 100)">
+        </div>
+        <div class="visual-control">
+          <label>Distância Y: <span id="vc-word-offset-val">0px</span></label>
+          <input type="range" id="vc-word-offset" class="range-control" min="-1.5" max="2" step="0.5" value="0" oninput="document.getElementById('vc-word-offset-val').textContent=this.value+'px'; updateVisualConfig('word','offset',this.value+'px')">
+        </div>
+        <div class="visual-control">
+          <label><input type="checkbox" id="vc-suffix-visible" onchange="updateVisualConfig('suffix','visible', this.checked)" checked> Mostrar sufixos</label>
+        </div>
+      </fieldset>
+
+      <!-- Suffix state underline customization -->
+      <fieldset class="visual-section">
+        <legend>Sufixo de Estado</legend>
+        <div class="visual-control">
+          <label><input type="checkbox" id="vc-suffix-state-use-word-offset" onchange="updateVisualConfig('suffixState','useWordOffset', this.checked)"> Usar mesma Distância Y de palavras traduzidas</label>
+        </div>
+        <div class="visual-control">
+          <label>Cor do underline</label>
+          <input type="color" id="vc-suffix-state-color" class="color-picker" onchange="updateVisualConfig('suffixState', 'color', this.value)">
+        </div>
+        <div class="visual-control">
+          <label>Espessura</label>
+          <select id="vc-suffix-state-thickness" class="select-control" onchange="updateVisualConfig('suffixState', 'thickness', this.value)">
+            <option value="1px">1px (fina)</option>
+            <option value="1.5px" selected>1.5px</option>
+            <option value="2px">2px</option>
+            <option value="2.5px">2.5px</option>
+          </select>
+        </div>
+        <div class="visual-control">
+          <label>Estilo</label>
+          <select id="vc-suffix-state-style" class="select-control" onchange="updateVisualConfig('suffixState', 'style', this.value)">
+            <option value="solid">Sólido</option>
+            <option value="dashed" selected>Tracejado</option>
+            <option value="dotted">Pontilhado</option>
+          </select>
+        </div>
+        <div class="visual-control">
+          <label>Opacidade: <span id="vc-suffix-state-opacity-val">75%</span></label>
+          <input type="range" id="vc-suffix-state-opacity" class="range-control" min="0" max="100" value="75" onchange="updateVisualConfig('suffixState', 'opacity', this.value / 100)">
+        </div>
+        <div class="visual-control">
+          <label>Distância Y: <span id="vc-suffix-state-offset-val">0px</span></label>
+          <input type="range" id="vc-suffix-state-offset" class="range-control" min="-4" max="8" step="0.5" value="1" oninput="document.getElementById('vc-suffix-state-offset-val').textContent=this.value+'px'; updateVisualConfig('suffixState','offset',this.value+'px')">
+        </div>
+      </fieldset>
+
+      <!-- Suffix derivative underline customization -->
+      <fieldset class="visual-section">
+        <legend>Sufixo Primitivo/Derivativo</legend>
+        <div class="visual-control">
+          <label><input type="checkbox" id="vc-suffix-derivative-use-word-offset" onchange="updateVisualConfig('suffixDerivative','useWordOffset', this.checked)"> Usar mesma Distância Y de palavras traduzidas</label>
+        </div>
+        <div class="visual-control">
+          <label>Cor do underline</label>
+          <input type="color" id="vc-suffix-derivative-color" class="color-picker" onchange="updateVisualConfig('suffixDerivative', 'color', this.value)">
+        </div>
+        <div class="visual-control">
+          <label>Espessura</label>
+          <select id="vc-suffix-derivative-thickness" class="select-control" onchange="updateVisualConfig('suffixDerivative', 'thickness', this.value)">
+            <option value="1px">1px (fina)</option>
+            <option value="1.5px" selected>1.5px</option>
+            <option value="2px">2px</option>
+            <option value="2.5px">2.5px</option>
+          </select>
+        </div>
+        <div class="visual-control">
+          <label>Estilo</label>
+          <select id="vc-suffix-derivative-style" class="select-control" onchange="updateVisualConfig('suffixDerivative', 'style', this.value)">
+            <option value="solid">Sólido</option>
+            <option value="dashed" selected>Tracejado</option>
+            <option value="dotted">Pontilhado</option>
+          </select>
+        </div>
+        <div class="visual-control">
+          <label>Opacidade: <span id="vc-suffix-derivative-opacity-val">75%</span></label>
+          <input type="range" id="vc-suffix-derivative-opacity" class="range-control" min="0" max="100" value="75" onchange="updateVisualConfig('suffixDerivative', 'opacity', this.value / 100)">
+        </div>
+        <div class="visual-control">
+          <label>Distância Y: <span id="vc-suffix-derivative-offset-val">0px</span></label>
+          <input type="range" id="vc-suffix-derivative-offset" class="range-control" min="-4" max="8" step="0.5" value="1" oninput="document.getElementById('vc-suffix-derivative-offset-val').textContent=this.value+'px'; updateVisualConfig('suffixDerivative','offset',this.value+'px')">
+        </div>
+      </fieldset>
+
+      <fieldset class="visual-section">
+        <legend>Atalhos</legend>
+        <div class="visual-control">
+          <label for="vc-shortcut-open-search">Buscar no dicionário</label>
+          <input class="form-input" id="vc-shortcut-open-search" type="text" placeholder="Ctrl+K" readonly onkeydown="captureShortcutInput(event, 'openSearch')" onclick="this.select()">
+        </div>
+        <div class="visual-control">
+          <label for="vc-shortcut-open-pdf-search">Buscar no PDF</label>
+          <input class="form-input" id="vc-shortcut-open-pdf-search" type="text" placeholder="Ctrl+F" readonly onkeydown="captureShortcutInput(event, 'openPdfSearch')" onclick="this.select()">
+        </div>
+        <div class="visual-control">
+          <label for="vc-shortcut-toggle-sidebar">Alternar dicionário</label>
+          <input class="form-input" id="vc-shortcut-toggle-sidebar" type="text" placeholder="Ctrl+Alt+D" readonly onkeydown="captureShortcutInput(event, 'toggleSidebar')" onclick="this.select()">
+        </div>
+        <div class="visual-control">
+          <label for="vc-shortcut-toggle-visual">Alternar aparência</label>
+          <input class="form-input" id="vc-shortcut-toggle-visual" type="text" placeholder="Ctrl+Alt+P" readonly onkeydown="captureShortcutInput(event, 'toggleVisualPanel')" onclick="this.select()">
+        </div>
+        <div class="form-help">Clique no campo e pressione a combinação desejada. Os atalhos são salvos automaticamente.</div>
+      </fieldset>
+
+      <fieldset class="visual-section">
+        <legend>Letras Extras</legend>
+        <div class="visual-control">
+          <label>Cor da linha</label>
+          <input type="color" id="vc-extra-color" class="color-picker" onchange="updateVisualConfig('extra', 'color', this.value)">
+        </div>
+        <div class="visual-control">
+          <label>Espessura</label>
+          <select id="vc-extra-thickness" class="select-control" onchange="updateVisualConfig('extra', 'thickness', this.value)">
+            <option value="1px">1px (fina)</option>
+            <option value="1.25px">1.25px</option>
+            <option value="1.5px" selected>1.5px (padrão)</option>
+            <option value="1.75px">1.75px</option>
+            <option value="2px">2px</option>
+          </select>
+        </div>
+        <div class="visual-control">
+          <label>Estilo</label>
+          <select id="vc-extra-style" class="select-control" onchange="updateVisualConfig('extra', 'style', this.value)">
+            <option value="solid">Sólido</option>
+            <option value="dashed" selected>Tracejado</option>
+            <option value="dotted">Pontilhado</option>
+          </select>
+        </div>
+        <div class="visual-control">
+          <label>Opacidade: <span id="vc-extra-opacity-val">75%</span></label>
+          <input type="range" id="vc-extra-opacity" class="range-control" min="0" max="100" value="75" onchange="document.getElementById('vc-extra-opacity-val').textContent=this.value+'%'; updateVisualConfig('extra', 'opacity', this.value / 100)">
+        </div>
+      </fieldset>
+
+      <button class="btn-reset-visual" onclick="resetVisualConfig()">↻ Restaurar padrões</button>
+    </div>
+  </div>
+
+  <!-- Suffix Modal -->
+  <div id="suffix-modal" onclick="closeSuffixModalBackdrop(event)">
+    <div class="suffix-box">
+      <div class="suffix-header">
+        <div class="suffix-header-left">
+          <div class="suffix-badge" id="sm-suffix">-ing</div>
+          <div class="suffix-type-badge" id="sm-type">verbal</div>
+        </div>
+        <button class="suffix-close" onclick="closeSuffixModal()">✕</button>
+      </div>
+      <div class="suffix-body">
+        <div class="suffix-meaning" id="sm-meaning">—</div>
+        <div class="suffix-examples-label">Exemplos</div>
+        <div class="suffix-example-list" id="sm-examples"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loading-text">Carregando PDF…</div>
+  </div>
+
+  <!-- Notification -->
+  <div id="notif"></div>
+
+  <script src="script/state-data.js"></script>
+  <script src="script/common-words-seed.js"></script>
+  <script src="script/storage.js"></script>
+  <script src="script/word-model.js"></script>
+  <script src="script/pronunciation.js"></script>
+  <script src="script/suffix-system.js"></script>
+  <script src="script/pdf-loader.js"></script>
+  <script src="script/text-layer.js"></script>
+  <script src="script/tooltip.js"></script>
+  <script src="script/search.js"></script>
+  <script src="script/sidebar-visual-panel.js"></script>
+  <script src="script/dict-editor.js"></script>
+  <script src="script/zoom-navigation.js"></script>
+  <script src="script/keyboard-shortcuts.js"></script>
+  <script src="script/app-ui-helpers.js"></script>
+</body>
+</html>
