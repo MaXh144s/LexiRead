@@ -27,7 +27,6 @@ O projeto é dividido em módulos JS carregados em sequência (sem bundler). Cad
 | Arquivo | Responsabilidade |
 |---|---|
 | `state-data.js` | Estado global da aplicação (`State`) e dicionário padrão de palavras |
-| `common-words-seed.js` | Lista base de ~20 mil palavras em inglês (frequência) com tradução para PT, usada como dicionário inicial |
 | `storage.js` | Camada de persistência via IndexedDB: CRUD genérico, dicionário, sufixos, config visual e histórico de recentes |
 | `pdf-loader.js` | Carregamento e renderização do PDF (via pdf.js) |
 | `text-layer.js` | Tokenização do texto do PDF (geometria/largura de caracteres) e ativação da camada interativa de palavras clicáveis |
