@@ -62,6 +62,7 @@
           loadDictionary(),
           loadSuffixDictionary(),
           loadVisualConfig(),
+          loadPracticeData(),
         ]);
       } catch (e) {
         console.error('Erro na inicialização do armazenamento:', e);

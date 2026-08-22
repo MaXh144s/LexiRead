@@ -242,6 +242,29 @@
 
 
     // ═══════════════════════════════════════════════════════════
+    // DADOS DE PRÁTICA (repetição espaçada, estilo Leitner)
+    // Estrutura: { [word]: { box, timesSeen, timesCorrect, lastReviewed, nextReview } }
+    // ═══════════════════════════════════════════════════════════
+    async function loadPracticeData() {
+      try {
+        const rec = await idbGet('kv', 'practiceData');
+        State.practiceData = rec ? (rec.value || {}) : {};
+      } catch (e) {
+        console.warn('Erro ao carregar dados de prática:', e);
+        State.practiceData = {};
+      }
+    }
+
+    async function savePracticeData() {
+      try {
+        await idbSet('kv', { key: 'practiceData', value: State.practiceData });
+      } catch (e) {
+        console.error('Erro ao salvar dados de prática:', e);
+        showNotif('Erro ao salvar progresso da prática.');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // RECENTES
     // ═══════════════════════════════════════════════════════════
     const MAX_RECENTS = 5;

@@ -500,10 +500,6 @@
     color: #fca87f;
   }
 
-  .tt-body {
-    /* container das páginas do tooltip (principal / descrição) */
-  }
-
   .tt-description-text {
     color: rgba(255, 255, 255, 0.82);
     font-size: 0.82rem;
@@ -2087,4 +2083,382 @@
 .page-error-retry:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PRACTICE MODAL — aba de prática (repetição espaçada)
+   ══════════════════════════════════════════════════════════════ */
+#practice-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(26, 21, 16, 0.45);
+  align-items: flex-start;
+  justify-content: center;
+  padding: 50px 16px;
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+}
+
+#practice-modal.open {
+  display: flex;
+}
+
+.practice-box {
+  width: 480px;
+  max-width: 100%;
+  background: var(--paper);
+  border-radius: 4px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.practice-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.practice-title {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.practice-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ink3);
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  transition: all 0.15s;
+}
+
+.practice-close:hover {
+  background: var(--highlight);
+  color: var(--accent);
+}
+
+.practice-screen {
+  display: none;
+}
+
+.practice-screen.active {
+  display: block;
+}
+
+.practice-body {
+  padding: 20px 18px;
+}
+
+/* ── Setup ── */
+.practice-source-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.practice-source-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--ink2);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+
+.practice-source-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.practice-source-btn.active {
+  background: var(--highlight);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.practice-source-btn small {
+  font-size: 0.7rem;
+  color: var(--ink3);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.practice-source-btn.active small {
+  color: var(--accent);
+}
+
+.practice-due-info {
+  font-size: 0.78rem;
+  color: var(--gold);
+  margin: 14px 0;
+  min-height: 1em;
+}
+
+.practice-empty-msg {
+  font-size: 0.8rem;
+  color: var(--ink3);
+  text-align: center;
+  padding: 10px;
+  margin-top: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+}
+
+/* ── Progress ── */
+.practice-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.practice-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.practice-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.25s ease;
+  width: 0%;
+}
+
+.practice-progress-label {
+  font-size: 0.7rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--ink3);
+  flex-shrink: 0;
+}
+
+/* ── Question ── */
+.practice-word {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.practice-answer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.practice-input {
+  text-align: center;
+  font-size: 1rem;
+}
+
+/* ── Reveal card ── */
+.practice-verdict {
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 8px;
+  border-radius: 3px;
+  margin-bottom: 14px;
+}
+
+.practice-verdict.correct {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+  border: 1px solid rgba(22, 163, 74, 0.25);
+}
+
+.practice-verdict.incorrect {
+  background: rgba(194, 65, 12, 0.08);
+  color: var(--accent);
+  border: 1px solid rgba(194, 65, 12, 0.25);
+}
+
+.practice-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.practice-card-word {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.practice-card-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink3);
+  margin-bottom: 4px;
+  margin-top: 10px;
+}
+
+.practice-card-translations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.practice-trans-pill {
+  background: var(--highlight);
+  border: 1px solid rgba(194, 65, 12, 0.3);
+  color: var(--accent);
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.practice-card-description {
+  font-size: 0.82rem;
+  color: var(--ink2);
+  line-height: 1.55;
+}
+
+.practice-example {
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  background: var(--paper);
+  border-radius: 3px;
+  border-left: 2px solid rgba(194, 65, 12, 0.4);
+}
+
+.practice-ex-orig {
+  font-style: italic;
+  color: var(--ink2);
+  font-size: 0.78rem;
+  margin-bottom: 2px;
+}
+
+.practice-ex-trans {
+  color: var(--ink3);
+  font-size: 0.73rem;
+}
+
+.practice-self-check {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.practice-self-check-label {
+  font-size: 0.82rem;
+  color: var(--ink2);
+  margin-bottom: 8px;
+}
+
+.practice-self-check-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.practice-self-check-btns .btn-secondary {
+  width: auto;
+  flex: 1;
+  margin-top: 0;
+}
+
+/* ── Summary ── */
+.practice-score {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: center;
+}
+
+.practice-score-label {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 18px;
+}
+
+.practice-review-list {
+  margin-bottom: 16px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.practice-review-title {
+  font-size: 0.75rem;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.practice-review-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.practice-review-word {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.practice-review-trans {
+  color: var(--ink3);
+  text-align: right;
+}
+
+.practice-review-empty {
+  text-align: center;
+  color: var(--ink3);
+  font-size: 0.85rem;
+  padding: 12px;
+}
+
+@media (max-width: 600px) {
+  .practice-box {
+    width: 100%;
+  }
+
+  #practice-modal {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .practice-box {
+    border-radius: 0;
+    min-height: 100vh;
+  }
 }

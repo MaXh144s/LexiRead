@@ -62,12 +62,14 @@
       <button class="tb-btn" id="btn-search" onclick="openSearch()" title="Buscar no dicionário (Ctrl+K)">🔍 Buscar</button>
       <button class="tb-btn" id="btn-pdf-search" onclick="openPdfSearch()" title="Buscar texto no PDF (Ctrl+F)">📄🔍 Buscar no PDF</button>
       <button class="tb-btn" id="btn-visual" onclick="toggleVisualPanel()" title="Customizar aparência dos underlines">🎨 Aparência</button>
+      <button class="tb-btn" id="btn-practice" onclick="openPracticeModal()" title="Praticar palavras do dicionário">🎯 Praticar</button>
       <button class="tb-btn" id="btn-dict" onclick="toggleSidebar()">📖 Dicionário</button>
     </div>
 
     <div id="mobile-actions-menu" class="mobile-actions-menu" aria-hidden="true" role="menu">
       <button class="mob-action" type="button" onclick="toggleSidebar(); toggleMobileMenu(false)">📖 Dicionário</button>
       <button class="mob-action" type="button" onclick="toggleVisualPanel(); toggleMobileMenu(false)">🎨 Aparência</button>
+    <button class="mob-action" type="button" onclick="openPracticeModal(); toggleMobileMenu(false)">🎯 Praticar</button>
       <button class="mob-action" type="button" onclick="openSearch(); toggleMobileMenu(false)">🔍 Buscar no dicionário</button>
       <button class="mob-action" type="button" onclick="openPdfSearch(); toggleMobileMenu(false)">📄🔍 Buscar no PDF</button>
       <button class="mob-action" type="button" onclick="document.getElementById('file-input').click(); toggleMobileMenu(false)">📂 Outro PDF</button>
@@ -530,6 +532,101 @@
     </div>
   </div>
 
+  <!-- Practice Modal -->
+  <div id="practice-modal" onclick="closePracticeOnBackdrop(event)">
+    <div class="practice-box">
+      <div class="practice-header">
+        <div class="practice-title">🎯 Praticar</div>
+        <button class="practice-close" onclick="closePracticeModal()">✕</button>
+      </div>
+
+      <!-- Tela 1: Configuração -->
+      <div class="practice-screen active" id="practice-screen-setup">
+        <div class="practice-body">
+          <div class="form-group">
+            <label class="form-label">Fonte das palavras</label>
+            <div class="practice-source-options">
+              <button type="button" class="practice-source-btn active" id="practice-src-current" onclick="selectPracticeSource('current')">
+                📖 Usar dicionário atual
+                <small id="practice-current-count">0 palavras</small>
+              </button>
+              <button type="button" class="practice-source-btn" id="practice-src-upload" onclick="selectPracticeSource('upload')">
+                ⬆ Carregar outro dicionário
+                <small id="practice-upload-status">Nenhum arquivo</small>
+              </button>
+            </div>
+            <input type="file" id="practice-file-input" accept=".json" style="display:none" onchange="handlePracticeFileInput(this)">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Palavras nesta sessão</label>
+            <input class="form-input" type="number" id="practice-session-size" min="1" max="20" value="20">
+            <small class="form-help">Máximo de 20 palavras por sessão. Palavras atrasadas para revisão entram primeiro.</small>
+          </div>
+
+          <div class="practice-due-info" id="practice-due-info"></div>
+
+          <button class="btn-save" id="practice-start-btn" onclick="startPracticeSession()">▶ Iniciar prática</button>
+          <div class="practice-empty-msg" id="practice-empty-msg" style="display:none">
+            O dicionário selecionado não tem palavras suficientes para praticar. Adicione palavras ou carregue outro dicionário.
+          </div>
+        </div>
+      </div>
+
+      <!-- Tela 2: Pergunta/Resposta -->
+      <div class="practice-screen" id="practice-screen-question">
+        <div class="practice-progress-wrap">
+          <div class="practice-progress-bar"><div class="practice-progress-fill" id="practice-progress-fill"></div></div>
+          <div class="practice-progress-label" id="practice-progress-label">1/20</div>
+        </div>
+
+        <div class="practice-body">
+          <div class="practice-word" id="practice-word">—</div>
+
+          <div class="practice-answer-form" id="practice-answer-form">
+            <input class="form-input practice-input" type="text" id="practice-input" placeholder="Digite o significado…" autocomplete="off" spellcheck="false" onkeydown="handlePracticeInputKey(event)">
+            <button class="btn-save" onclick="checkPracticeAnswer()">Verificar</button>
+          </div>
+
+          <!-- Card revelado após verificar -->
+          <div class="practice-reveal" id="practice-reveal" style="display:none">
+            <div class="practice-verdict" id="practice-verdict"></div>
+
+            <div class="practice-card">
+              <div class="practice-card-word" id="practice-card-word">—</div>
+              <div class="practice-card-translations" id="practice-card-translations"></div>
+              <div class="practice-card-description" id="practice-card-description" style="display:none"></div>
+              <div class="practice-card-examples" id="practice-card-examples"></div>
+            </div>
+
+            <div class="practice-self-check" id="practice-self-check" style="display:none">
+              <div class="practice-self-check-label">Você acertou mesmo assim?</div>
+              <div class="practice-self-check-btns">
+                <button type="button" class="btn-secondary" onclick="selfCheckAnswer(true)">✓ Sim, acertei</button>
+                <button type="button" class="btn-secondary" onclick="selfCheckAnswer(false)">✕ Não, errei</button>
+              </div>
+            </div>
+
+            <button class="btn-save" id="practice-next-btn" onclick="confirmAndNext()" disabled>Próxima →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tela 3: Resumo -->
+      <div class="practice-screen" id="practice-screen-summary">
+        <div class="practice-body">
+          <div class="practice-score" id="practice-score">0/0</div>
+          <div class="practice-score-label">acertos</div>
+
+          <div class="practice-review-list" id="practice-review-list"></div>
+
+          <button class="btn-save" onclick="restartPracticeSetup()">↻ Nova sessão</button>
+          <button class="btn-secondary" onclick="closePracticeModal()">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Loading -->
   <div id="loading-overlay">
     <div class="loading-spinner"></div>
@@ -551,6 +648,7 @@
   <script src="script/search.js"></script>
   <script src="script/sidebar-visual-panel.js"></script>
   <script src="script/dict-editor.js"></script>
+  <script src="script/practice.js"></script>
   <script src="script/zoom-navigation.js"></script>
   <script src="script/keyboard-shortcuts.js"></script>
   <script src="script/app-ui-helpers.js"></script>

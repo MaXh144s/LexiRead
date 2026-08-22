@@ -26,6 +26,19 @@
       pdfSearchFocusIdx: -1,
       pdfSearchResults: [],
       lastPageSaveTimer: null,
+      // ── Novo: Prática (repetição espaçada) ──
+      practiceData: {}, // persistido via IndexedDB: { [word]: { box, timesSeen, timesCorrect, lastReviewed, nextReview } }
+      practice: {
+        source: 'current',        // 'current' | 'upload'
+        uploadedDict: null,       // dicionário carregado avulso (não sobrescreve State.dictionary)
+        activeDict: null,         // ponteiro pro dicionário usado nesta sessão
+        queue: [],                // lista de palavras (keys) da sessão atual, na ordem de exibição
+        currentIndex: 0,
+        correctCount: 0,
+        wrongWords: [],           // [{ word, entry }] erradas na sessão, para o resumo
+        currentWord: null,
+        lastCheckCorrect: null,   // resultado do match automático da tentativa atual
+      },
       // ── Novo: Configuração visual personalizada ──
       visualConfig: {
         word: {
@@ -442,4 +455,3 @@
       "similar": { "translations": ["similar", "semelhante", "parecido"], "examples": [] },
       "compared": { "translations": ["comparado", "em relação a"], "examples": [] },
     };
-
