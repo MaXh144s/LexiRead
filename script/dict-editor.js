@@ -19,10 +19,14 @@
       list.innerHTML = keys.map(k => {
         const entry = State.dictionary[k];
         const trans = entry.translations?.slice(0, 3).join(', ') || '—';
+        const safeKey = k.replace(/'/g, "\\'");
         return `
-      <div class="dict-entry" onclick="openEditEntry('${k.replace(/'/g, "\\'")}')">
+      <div class="dict-entry" style="position:relative;padding-right:34px;" onclick="openEditEntry('${safeKey}')">
         <div class="dict-entry-word">${k}</div>
         <div class="dict-entry-trans">${trans}</div>
+        <button type="button" title="Excluir palavra"
+          style="position:absolute;top:8px;right:8px;background:none;border:none;color:#dc2626;cursor:pointer;font-size:0.95rem;line-height:1;padding:2px 4px;"
+          onclick="event.stopPropagation(); deleteWordFromDictionary('${safeKey}')">✕</button>
       </div>
     `;
       }).join('');
@@ -30,6 +34,73 @@
 
     function filterDict(q) {
       renderDictList(q);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // EXCLUSÃO DE PALAVRA (com confirmação e "desfazer")
+    // Excluir só remove a entrada do dicionário local — a palavra pode ser
+    // adicionada de novo a qualquer momento, normalmente, como se fosse nova.
+    // ═══════════════════════════════════════════════════════════
+    let _lastDeletedWord = null; // { key, entry } — guardado só pra permitir "Desfazer" logo em seguida
+
+    function deleteWordFromDictionary(word) {
+      word = (word || '').trim();
+      const entry = State.dictionary[word];
+      if (!entry) return;
+
+      const confirmed = confirm(`Excluir "${word}" do dicionário?\n\nIsso remove a tradução e os exemplos salvos dela. Você pode adicionar essa palavra de novo depois, se quiser.`);
+      if (!confirmed) return;
+
+      _lastDeletedWord = { key: word, entry: cloneDictionaryEntry(entry) };
+      delete State.dictionary[word];
+      saveDictionary();
+      renderDictList(document.getElementById('dict-search')?.value || '');
+
+      // Se a palavra excluída era a que estava aberta no formulário, reflete isso ali também
+      const wordInput = document.getElementById('edit-word');
+      if (wordInput && wordInput.value.trim() === word) {
+        toggleDeleteWordButton(word);
+      }
+
+      showUndoDeleteNotif(word);
+    }
+
+    function showUndoDeleteNotif(word) {
+      const el = document.getElementById('notif');
+      if (!el) return;
+      el.innerHTML = `${escapeHtml(`"${word}" foi excluída do dicionário.`)} <button type="button" onclick="undoDeleteWord()" style="margin-left:10px;background:none;border:none;text-decoration:underline;cursor:pointer;color:inherit;font:inherit;padding:0;">Desfazer</button>`;
+      el.style.display = 'block';
+      clearTimeout(el._timeout);
+      el._timeout = setTimeout(() => {
+        el.style.display = 'none';
+        _lastDeletedWord = null;
+      }, 6000);
+    }
+
+    function undoDeleteWord() {
+      if (!_lastDeletedWord) return;
+      const { key, entry } = _lastDeletedWord;
+      State.dictionary[key] = entry;
+      saveDictionary();
+      renderDictList(document.getElementById('dict-search')?.value || '');
+
+      const wordInput = document.getElementById('edit-word');
+      if (wordInput && wordInput.value.trim() === key) {
+        toggleDeleteWordButton(key);
+      }
+
+      const el = document.getElementById('notif');
+      if (el) { clearTimeout(el._timeout); el.style.display = 'none'; }
+      _lastDeletedWord = null;
+      showNotif(`"${key}" restaurada no dicionário.`);
+    }
+
+    // Mostra o botão "Excluir do dicionário" no formulário só quando a palavra
+    // já existe de fato no dicionário (não faz sentido excluir algo ainda não salvo).
+    function toggleDeleteWordButton(word) {
+      const btn = document.getElementById('btn-delete-word');
+      if (!btn) return;
+      btn.style.display = State.dictionary[(word || '').trim()] ? 'inline-block' : 'none';
     }
 
     function setEditSectionCollapsed(sectionId, collapsed) {
@@ -160,6 +231,7 @@
         }
 
         ensureDictEntryDraftListeners();
+        toggleDeleteWordButton(word);
         // Reabrir uma entrada existente não é "sujar" o formulário — isso só
         // acontece quando o usuário de fato altera algo a partir daqui.
         State.dirty.dictEntry = false;
@@ -200,6 +272,7 @@
 
       document.getElementById('save-success').style.display = 'none';
       ensureDictEntryDraftListeners();
+      toggleDeleteWordButton(word);
       State.dirty.dictEntry = false;
       if (typeof updateDirtyIndicator === 'function') updateDirtyIndicator();
     }
@@ -214,6 +287,7 @@
       const descInput = document.getElementById('edit-word-description');
       if (descInput) descInput.value = '';
       document.getElementById('save-success').style.display = 'none';
+      toggleDeleteWordButton('');
       // Limpar o formulário é uma decisão explícita de descartar — some com o rascunho também.
       if (typeof clearDictEntryDraft === 'function') clearDictEntryDraft();
     }
@@ -338,6 +412,9 @@
       setTimeout(() => msg.style.display = 'none', 2000);
 
       showNotif(`"${word}" salvo no dicionário!`);
+
+      // Agora a palavra existe de fato no dicionário — o botão de excluir passa a fazer sentido.
+      toggleDeleteWordButton(word);
 
       // Salvou de verdade — o rascunho local (backup do formulário) não é mais necessário.
       if (typeof clearDictEntryDraft === 'function') clearDictEntryDraft();

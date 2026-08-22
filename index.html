@@ -190,6 +190,7 @@
 
           <button class="btn-save" onclick="saveEntry()">💾 Salvar no dicionário</button>
           <button class="btn-secondary" onclick="clearEditForm()">Limpar</button>
+          <button class="btn-secondary" id="btn-delete-word" style="display:none;color:#dc2626;border-color:#dc2626;margin-top:0.5rem;" onclick="deleteWordFromDictionary(document.getElementById('edit-word').value.trim())">🗑️ Excluir do dicionário</button>
           <div class="success-msg" id="save-success">✓ Salvo com sucesso!</div>
         </div>
 
