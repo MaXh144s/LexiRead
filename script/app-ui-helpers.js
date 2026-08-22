@@ -33,6 +33,38 @@
       scheduleSaveLastPage();
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // ROBUSTEZ DE ARMAZENAMENTO
+    // Indicador visual de alterações não salvas (título da aba), aviso nativo
+    // do navegador antes de fechar/recarregar enquanto houver algo pendente,
+    // e retry periódico de gravações que falharam no IndexedDB.
+    // Ver storage.js (hasUnsavedWork/flushFailedWrites) e dict-editor.js/
+    // suffix-system.js (State.dirty.*).
+    // ═══════════════════════════════════════════════════════════
+    const BASE_TITLE = document.title;
+
+    function updateDirtyIndicator() {
+      const unsaved = typeof hasUnsavedWork === 'function' && hasUnsavedWork();
+      document.title = unsaved ? `● ${BASE_TITLE}` : BASE_TITLE;
+    }
+
+    window.addEventListener('beforeunload', (e) => {
+      if (typeof hasUnsavedWork === 'function' && hasUnsavedWork()) {
+        e.preventDefault();
+        e.returnValue = ''; // exigido por navegadores pra exibir o diálogo nativo
+        return '';
+      }
+    });
+
+    if (typeof flushFailedWrites === 'function') {
+      // Retry periódico em segundo plano, e também assim que a aba volta a
+      // ficar visível (ex: usuário estava em outra aba/app e voltou).
+      setInterval(flushFailedWrites, 20000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') flushFailedWrites();
+      });
+    }
+
     function updateProgress() {
       const reader = document.getElementById('reader');
       reader.addEventListener('scroll', () => {
@@ -72,4 +104,9 @@
 
       // Stats iniciais
       document.getElementById('stat-words').textContent = Object.keys(State.dictionary).length;
+
+      // Recupera rascunhos de edição não salvos de uma sessão anterior
+      // (aba fechada/crash antes de clicar em Salvar) — ver storage.js.
+      if (typeof restoreDictEntryDraftPrompt === 'function') restoreDictEntryDraftPrompt();
+      if (typeof restoreSuffixEntryDraftPrompt === 'function') restoreSuffixEntryDraftPrompt();
     });

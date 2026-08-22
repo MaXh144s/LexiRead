@@ -26,6 +26,16 @@
       pdfSearchFocusIdx: -1,
       pdfSearchResults: [],
       lastPageSaveTimer: null,
+      // ── Novo: Robustez de armazenamento (persistência/rascunho) ──
+      // Ver storage.js para a lógica que usa estes campos.
+      dirty: {
+        dictEntry: false,   // formulário de edição de palavra tem alterações não salvas
+        suffixEntry: false, // formulário de edição de sufixo tem alterações não salvas
+      },
+      pendingWrites: 0,   // gravações no IndexedDB em andamento (ainda não confirmadas)
+      failedWrites: [],   // gravações que falharam mesmo após as tentativas automáticas: { id, store, value, attempts }
+      dictDraftTimer: null,   // debounce do autosave do rascunho de edição de palavra
+      suffixDraftTimer: null, // debounce do autosave do rascunho de edição de sufixo
       // ── Novo: Prática (repetição espaçada) ──
       practiceData: {}, // persistido via IndexedDB: { [word]: { box, timesSeen, timesCorrect, lastReviewed, nextReview } }
       practice: {

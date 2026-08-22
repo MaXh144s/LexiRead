@@ -57,9 +57,67 @@
 
 
     // ═══════════════════════════════════════════════════════════
+    // ROBUSTEZ — rascunho autosalvo + confirmação antes de descartar
+    // alterações não salvas ao trocar de palavra no formulário.
+    // ═══════════════════════════════════════════════════════════
+    let _dictDraftListenersAttached = false;
+    function ensureDictEntryDraftListeners() {
+      if (_dictDraftListenersAttached) return;
+      _dictDraftListenersAttached = true;
+      const wordInput = document.getElementById('edit-word');
+      if (wordInput) wordInput.addEventListener('input', scheduleDictEntryDraftSave);
+      const descInput = document.getElementById('edit-word-description');
+      if (descInput) descInput.addEventListener('input', scheduleDictEntryDraftSave);
+    }
+
+    // Se o formulário atual tem alterações não salvas de OUTRA palavra,
+    // pergunta antes de sobrescrever (o rascunho continua salvo mesmo se o
+    // usuário escolher descartar — só sai da visão do formulário).
+    function confirmDiscardDictEntryIfDirty(nextWord) {
+      if (!State.dirty.dictEntry) return true;
+      const currentWord = (document.getElementById('edit-word')?.value || '').trim();
+      if (currentWord === (nextWord || '').trim()) return true;
+      const label = currentWord || '(sem nome)';
+      return confirm(`Você tem alterações não salvas em "${label}". Elas continuam guardadas como rascunho, mas para editar outra palavra agora é preciso sair deste formulário. Continuar mesmo assim?`);
+    }
+
+    function restoreDictEntryDraftPrompt() {
+      const draft = typeof loadDictEntryDraft === 'function' ? loadDictEntryDraft() : null;
+      if (!draft) return;
+      const label = draft.word || '(palavra sem nome)';
+      const when = draft.savedAt ? new Date(draft.savedAt).toLocaleString('pt-BR') : '';
+      const restore = confirm(`Encontramos um rascunho não salvo de "${label}"${when ? ' (' + when + ')' : ''}, provavelmente de uma aba fechada antes de clicar em Salvar. Deseja restaurá-lo agora para revisar e salvar?`);
+      if (!restore) {
+        clearDictEntryDraft();
+        return;
+      }
+      const sidebar = document.getElementById('sidebar');
+      if (!sidebar.classList.contains('open')) toggleSidebar();
+      switchTab('edit');
+      setTimeout(() => {
+        ensureDictEntryDraftListeners();
+        const wordInput = document.getElementById('edit-word');
+        if (wordInput) wordInput.value = draft.word || '';
+        State.editTranslations = [...(draft.translations || [])];
+        State.editExamples = (draft.examples || []).map(e => ({ ...e }));
+        renderTransTags();
+        renderExamples();
+        resetEditSections();
+        const descInput = document.getElementById('edit-word-description');
+        if (descInput) descInput.value = draft.description || '';
+        document.getElementById('save-success').style.display = 'none';
+        State.dirty.dictEntry = true;
+        if (typeof updateDirtyIndicator === 'function') updateDirtyIndicator();
+        showNotif('Rascunho restaurado — revise e clique em Salvar.', 4000);
+      }, 100);
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // EDIÇÃO DE ENTRADA
     // ═══════════════════════════════════════════════════════════
     function openEditEntry(word) {
+      if (!confirmDiscardDictEntryIfDirty(word)) return;
+
       // Abrir sidebar se fechada
       const sidebar = document.getElementById('sidebar');
       if (!sidebar.classList.contains('open')) {
@@ -100,6 +158,12 @@
         if (typeof initPronunciationControls === 'function') {
           initPronunciationControls(word);
         }
+
+        ensureDictEntryDraftListeners();
+        // Reabrir uma entrada existente não é "sujar" o formulário — isso só
+        // acontece quando o usuário de fato altera algo a partir daqui.
+        State.dirty.dictEntry = false;
+        if (typeof updateDirtyIndicator === 'function') updateDirtyIndicator();
       }, 80);
     }
 
@@ -119,6 +183,8 @@
     function loadEditForm(word) {
       // Chamado pela lista do dicionário (não pelo tooltip)
       // openEditEntry já cuida do fluxo do tooltip
+      if (!confirmDiscardDictEntryIfDirty(word)) return;
+
       const wordInput = document.getElementById('edit-word');
       if (wordInput) wordInput.value = word || '';
 
@@ -133,6 +199,9 @@
       if (descInput) descInput.value = entry.description || '';
 
       document.getElementById('save-success').style.display = 'none';
+      ensureDictEntryDraftListeners();
+      State.dirty.dictEntry = false;
+      if (typeof updateDirtyIndicator === 'function') updateDirtyIndicator();
     }
 
     function clearEditForm() {
@@ -145,6 +214,8 @@
       const descInput = document.getElementById('edit-word-description');
       if (descInput) descInput.value = '';
       document.getElementById('save-success').style.display = 'none';
+      // Limpar o formulário é uma decisão explícita de descartar — some com o rascunho também.
+      if (typeof clearDictEntryDraft === 'function') clearDictEntryDraft();
     }
 
     function renderTransTags() {
@@ -163,6 +234,7 @@
     function removeTranslation(idx) {
       State.editTranslations.splice(idx, 1);
       renderTransTags();
+      scheduleDictEntryDraftSave();
     }
 
     function addTranslationTokens(rawValue) {
@@ -175,6 +247,7 @@
 
       State.editTranslations.push(...tokens);
       renderTransTags();
+      scheduleDictEntryDraftSave();
     }
 
     function handleTagInput(e, type) {
@@ -194,9 +267,9 @@
     <div class="example-item">
       <button class="example-remove" onclick="removeExample(${i})">×</button>
       <input class="form-input" placeholder="Frase em inglês" value="${(ex.original || '').replace(/"/g, '&quot;')}"
-        oninput="State.editExamples[${i}].original = this.value">
+        oninput="State.editExamples[${i}].original = this.value; scheduleDictEntryDraftSave();">
       <input class="form-input" placeholder="Tradução da frase" value="${(ex.translated || '').replace(/"/g, '&quot;')}"
-        oninput="State.editExamples[${i}].translated = this.value" style="margin-top:4px">
+        oninput="State.editExamples[${i}].translated = this.value; scheduleDictEntryDraftSave();" style="margin-top:4px">
     </div>
   `).join('');
     }
@@ -204,11 +277,13 @@
     function addExampleField() {
       State.editExamples.push({ original: '', translated: '' });
       renderExamples();
+      scheduleDictEntryDraftSave();
     }
 
     function removeExample(idx) {
       State.editExamples.splice(idx, 1);
       renderExamples();
+      scheduleDictEntryDraftSave();
     }
 
     function saveEntry() {
@@ -263,6 +338,9 @@
       setTimeout(() => msg.style.display = 'none', 2000);
 
       showNotif(`"${word}" salvo no dicionário!`);
+
+      // Salvou de verdade — o rascunho local (backup do formulário) não é mais necessário.
+      if (typeof clearDictEntryDraft === 'function') clearDictEntryDraft();
     }
 
     function exportDict() {

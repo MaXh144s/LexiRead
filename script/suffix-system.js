@@ -313,14 +313,67 @@
       State.editSuffixExamples.push(value);
       input.value = '';
       renderSuffixExampleTags();
+      scheduleSuffixEntryDraftSave();
     }
 
     function removeSuffixExample(index) {
       State.editSuffixExamples.splice(index, 1);
       renderSuffixExampleTags();
+      scheduleSuffixEntryDraftSave();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // ROBUSTEZ — rascunho autosalvo + confirmação antes de descartar
+    // alterações não salvas ao trocar de sufixo no formulário.
+    // ═══════════════════════════════════════════════════════════
+    let _suffixDraftListenersAttached = false;
+    function ensureSuffixEntryDraftListeners() {
+      if (_suffixDraftListenersAttached) return;
+      _suffixDraftListenersAttached = true;
+      ['suffix-key', 'suffix-type', 'suffix-meaning'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', scheduleSuffixEntryDraftSave);
+      });
+    }
+
+    function confirmDiscardSuffixEntryIfDirty(nextSuffix) {
+      if (!State.dirty.suffixEntry) return true;
+      const currentSuffix = (document.getElementById('suffix-key')?.value || '').trim();
+      if (currentSuffix === (nextSuffix || '').trim()) return true;
+      const label = currentSuffix || '(sem nome)';
+      return confirm(`Você tem alterações não salvas no sufixo "-${label}". Elas continuam guardadas como rascunho, mas para editar outro sufixo agora é preciso sair deste formulário. Continuar mesmo assim?`);
+    }
+
+    function restoreSuffixEntryDraftPrompt() {
+      const draft = typeof loadSuffixEntryDraft === 'function' ? loadSuffixEntryDraft() : null;
+      if (!draft) return;
+      const label = draft.suffix ? `-${draft.suffix}` : '(sufixo sem nome)';
+      const when = draft.savedAt ? new Date(draft.savedAt).toLocaleString('pt-BR') : '';
+      const restore = confirm(`Encontramos um rascunho não salvo do sufixo "${label}"${when ? ' (' + when + ')' : ''}. Deseja restaurá-lo agora para revisar e salvar?`);
+      if (!restore) {
+        clearSuffixEntryDraft();
+        return;
+      }
+      const sidebar = document.getElementById('sidebar');
+      if (!sidebar.classList.contains('open')) toggleSidebar();
+      switchTab('suffixes');
+      setTimeout(() => {
+        ensureSuffixEntryDraftListeners();
+        document.getElementById('suffix-key').value = draft.suffix || '';
+        document.getElementById('suffix-type').value = draft.type || '';
+        document.getElementById('suffix-meaning').value = draft.meaning || '';
+        State.editSuffixExamples = [...(draft.examples || [])];
+        renderSuffixExampleTags();
+        document.getElementById('suffix-save-success').style.display = 'none';
+        State.dirty.suffixEntry = true;
+        if (typeof updateDirtyIndicator === 'function') updateDirtyIndicator();
+        showNotif('Rascunho de sufixo restaurado — revise e clique em Salvar.', 4000);
+      }, 100);
     }
 
     function loadSuffixForm(suffix) {
+      if (!confirmDiscardSuffixEntryIfDirty(suffix)) return;
+
       const entry = State.suffixDict[suffix] || { type: '', meaning: '', examples: [] };
       switchTab('suffixes');
       document.getElementById('suffix-key').value = suffix;
@@ -329,6 +382,9 @@
       State.editSuffixExamples = [...(entry.examples || [])];
       renderSuffixExampleTags();
       document.getElementById('suffix-save-success').style.display = 'none';
+      ensureSuffixEntryDraftListeners();
+      State.dirty.suffixEntry = false;
+      if (typeof updateDirtyIndicator === 'function') updateDirtyIndicator();
     }
 
     function clearSuffixForm() {
@@ -338,6 +394,7 @@
       State.editSuffixExamples = [];
       renderSuffixExampleTags();
       document.getElementById('suffix-save-success').style.display = 'none';
+      if (typeof clearSuffixEntryDraft === 'function') clearSuffixEntryDraft();
     }
 
 
@@ -376,4 +433,6 @@
       setTimeout(() => msg.style.display = 'none', 2000);
 
       showNotif(`"-${suffix}" salvo nos sufixos!`);
+
+      if (typeof clearSuffixEntryDraft === 'function') clearSuffixEntryDraft();
     }
